@@ -6,6 +6,7 @@
 		<script>
 			
 			var engineAmbient = null;
+			var chargingSqueel = null;
 			
 			soundManager.url = 'soundmanager/swf/';
 			soundManager.debugMode = false;
@@ -35,13 +36,18 @@
 					url: 'audio/thruster.mp3',
 					volume: 20
 				});
+				chargingSqueel = soundManager.createSound({
+					id: 'charging',
+					url: 'audio/charge.mp3',
+					volume: 10
+				});
 			}
 			
-			function ObjectInSpace(x,dx,y,dy) {
+			function ObjectInSpace(x,dx,y,dy, color) {
 				
 				this.x = x; this.dx = dx;
 				this.y = y; this.dy = dy;
-				
+				this.color = color;
 				this.in_play = true;
 				
 				this.collision = function() {
@@ -62,22 +68,31 @@
 				}
 				
 				this.draw = function() {
-					ctx.fillStyle = '#0055ff';
+					ctx.fillStyle = this.color;
 					rect(this.x, this.y, 3, 3);
 				}
 			}
 			
 			function HolyFuckASpaceShip(x,dx,y,dy,aa) {
 				this.inheritFrom = ObjectInSpace;
-				this.inheritFrom(x,dx,y,dy);
+				this.inheritFrom(x,dx,y,dy, '#ffffff');
 			
 				this.aa = aa;
 				this.aft_thruster = false;   // thrusters on/off
 				this.port_thruster = false;   // thrusters on/off
 				this.starboard_thruster = false;   // thrusters on/off
 				this.weapons_release = false;
+				this.charging_weapon = false;
+				this.playing_charge = false;
 			
 				this.physics = function() {
+					
+					if (this.charging_weapon != false && (new Date()).getTime() - this.charging_weapon >= 2000) {
+						if (this.playing_charge == false) {
+							this.playing_charge = true;
+							chargingSqueel.play();
+						}
+					}
 					
 					if (this.port_thruster)
 						this.aa -= 0.05;
@@ -101,7 +116,12 @@
 					this.y += this.dy;
 					
 					if (this.weapons_release)
-						this.fire_gun();
+						if ((new Date()).getTime() - this.charging_weapon >= 2000)
+							this.fire_gun(5);
+						else
+							this.fire_gun(1);
+							
+							
 				}
 				
 				this.draw = function() {
@@ -124,7 +144,7 @@
 					
 				}
 				
-				this.fire_gun = function() {
+				this.fire_gun = function(strength) {
 					var weaponSound = soundManager.createSound({
 						id: 'weapon_'+Math.random(),
 						url: 'audio/laser.mp3',
@@ -132,9 +152,11 @@
 					});
 					weaponSound.play();
 					this.weapons_release = false;
-					everything.push(new ObjectInSpace(this.x, this.dx+Math.cos(this.aa)*10, this.y, this.dy+Math.sin(this.aa)*10));
-					this.dx -= Math.cos(this.aa)*2
-					this.dy -= Math.sin(this.aa)*2
+					this.charging_weapon = false;
+					this.playing_charge = false;
+					everything.push(new ObjectInSpace(this.x, this.dx+Math.cos(this.aa)*strength*10, this.y, this.dy+Math.sin(this.aa)*strength*10, ((strength == 1) ? '#0055ff' : '#ff0000')));
+					this.dx -= Math.cos(this.aa)*strength*2
+					this.dy -= Math.sin(this.aa)*strength*2
 				}
 			}
 			
@@ -156,7 +178,8 @@
 			});
 			$(document).bind('keyup',   'Right', function(){ starboardThrusterAmbient.stop(); everything[0].starboard_thruster = false; });
 			
-			$(document).bind('keydown', 'Space', function(){ everything[0].weapons_release = true; });
+			$(document).bind('keydown', 'Space', function(){ everything[0].charging_weapon = (new Date()).getTime(); });
+			$(document).bind('keyup',   'Space', function(){ chargingSqueel.stop(); everything[0].weapons_release = true; });
 			
 			var ctx;
 			var WIDTH; 
